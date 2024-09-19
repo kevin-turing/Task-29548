@@ -1,1 +1,208 @@
-T1MB
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spot the Difference</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+    .game-area {
+        display: flex;
+        justify-content: space-around;
+    }
+    .svg-container {
+        width: 45%;
+        border: 2px solid #000;
+        overflow: hidden;
+    }
+    .difference {
+        stroke: red;
+        stroke-width: 2;
+        fill: none;
+    }
+    #timer, #hints, #score {
+        font-size: 1.5em;
+    }
+    .zoom {
+        transform-origin: 0 0;
+        transition: transform .2s;
+    }
+</style>
+</head>
+<body>
+
+<div class="container mt-5">
+    <h1>Spot the Difference</h1>
+    <!-- Main Menu -->
+    <div id="mainMenu">
+        <button onclick="startGame()">Start Game</button>
+        <button onclick="showTutorial()">Tutorial</button>
+        <select id="difficulty" onchange="updateDifficulty()">
+            <option value="easy">Easy</option>
+            <option value="medium">Medium</option>
+            <option value="hard">Hard</option>
+        </select>
+        <button onclick="toggleMultiplayer()">Multiplayer: Off</button>
+    </div>
+
+    <!-- Game Area -->
+    <div id="gameArea" style="display:none;">
+        <div id="player1" class="game-area">
+            <div class="svg-container" id="svgContainer1"></div>
+            <div class="svg-container" id="svgContainer2"></div>
+        </div>
+        <div id="player2" class="game-area" style="display:none;">
+            <div class="svg-container" id="svgContainer3"></div>
+            <div class="svg-container" id="svgContainer4"></div>
+        </div>
+        <div>
+            <button onclick="useHint()">Hint</button>
+            <div id="timer">Time: 0s</div>
+            <div id="hints">Hints: 3</div>
+            <div id="score">Score: 0</div>
+        </div>
+    </div>
+
+    <!-- Tutorial Section -->
+    <div id="tutorial" style="display:none;">
+        <h2>How to Play:</h2>
+        <p>Look for differences between two images. Click on them to score points. Use hints if stuck.</p>
+        <button onclick="hideTutorial()">Back to Menu</button>
+    </div>
+</div>
+
+<script>
+let differencesFound = 0;
+let totalDifferences = 0;
+let timerInterval;
+let timeElapsed = 0;
+let hintsLeft = 3;
+let isMultiplayer = false;
+let currentLevel = 1;
+let difficulty = 'easy';
+let zoomLevel = 1;
+const zoomMax = 3;
+const zoomMin = 1;
+
+function startGame() {
+    document.getElementById('mainMenu').style.display = 'none';
+    document.getElementById('gameArea').style.display = 'flex';
+    setupGame();
+}
+
+function setupGame() {
+    // Reset game variables
+    differencesFound = 0;
+    timeElapsed = 0;
+    hintsLeft = 3;
+    document.getElementById('hints').innerText = `Hints: ${hintsLeft}`;
+    document.getElementById('score').innerText = `Score: 0`;
+    clearInterval(timerInterval);
+    timerInterval = setInterval(updateTimer, 1000);
+    
+    // Generate SVGs
+    generateSVG(difficulty);
+}
+
+function generateSVG(difficulty) {
+    const themes = ['nature', 'city', 'abstract'];
+    const theme = themes[Math.floor(Math.random() * themes.length)];
+    const [svg1, svg2, differences] = generateDifferenceSVG(theme, difficulty);
+    document.getElementById('svgContainer1').innerHTML = svg1;
+    document.getElementById('svgContainer2').innerHTML = svg2;
+    if (isMultiplayer) {
+        document.getElementById('player2').style.display = 'block';
+        document.getElementById('svgContainer3').innerHTML = svg1;
+        document.getElementById('svgContainer4').innerHTML = svg2;
+    }
+    totalDifferences = differences;
+    // Add click event to find differences
+    document.querySelectorAll('.svg-container').forEach(container => {
+        container.onclick = (e) => checkDifference(e, differences);
+        container.onwheel = zoom;
+    });
+}
+
+function checkDifference(event, originalDifferences) {
+    const rect = event.target.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    
+    if (originalDifferences.some(diff => 
+        Math.abs(diff.x - x) < 10 && Math.abs(diff.y - y) < 10)) {
+        differencesFound++;
+        event.target.style.pointerEvents = 'none';
+        highlightDifference(x, y);
+        if (differencesFound === totalDifferences) {
+            gameWon();
+        }
+    }
+}
+
+function highlightDifference(x, y) {
+    const circle = document.createElementNS("http://www.w3.org/2000/svg", 'circle');
+    circle.setAttribute('cx', x);
+    circle.setAttribute('cy', y);
+    circle.setAttribute('r', 10);
+    circle.setAttribute('class', 'difference');
+    document.querySelector('.svg-container svg').appendChild(circle);
+}
+
+function useHint() {
+    if (hintsLeft > 0 && differencesFound < totalDifferences) {
+        hintsLeft--;
+        document.getElementById('hints').innerText = `Hints: ${hintsLeft}`;
+        const diff = generateDifferenceSVG(null, null, true); // Get one difference for hint
+        highlightDifference(diff[0].x, diff[0].y);
+    }
+}
+
+function updateTimer() {
+    timeElapsed++;
+    document.getElementById('timer').innerText = `Time: ${timeElapsed}s`;
+}
+
+function gameWon() {
+    clearInterval(timerInterval);
+    let bonus = Math.max(0, 60 - timeElapsed) * 10; // Bonus for quick completion
+    let score = differencesFound * 100 + bonus;
+    document.getElementById('score').innerText = `Score: ${score}`;
+    // Here you can add logic for moving to next level or showing game over screen
+}
+
+function zoom(event) {
+    event.preventDefault();
+    zoomLevel += event.deltaY * -0.01;
+    zoomLevel = Math.min(Math.max(zoomMin, zoomLevel), zoomMax);
+    event.currentTarget.style.transform = `scale(${zoomLevel})`;
+}
+
+function toggleMultiplayer() {
+    isMultiplayer = !isMultiplayer;
+    document.querySelector('button[onclick="toggleMultiplayer()"]').innerText = `Multiplayer: ${isMultiplayer ? 'On' : 'Off'}`;
+}
+
+function showTutorial() {
+    document.getElementById('mainMenu').style.display = 'none';
+    document.getElementById('tutorial').style.display = 'block';
+}
+
+function hideTutorial() {
+    document.getElementById('tutorial').style.display = 'none';
+    document.getElementById('mainMenu').style.display = 'block';
+}
+
+function updateDifficulty() {
+    difficulty = document.getElementById('difficulty').value;
+}
+
+// Placeholder for SVG generation - this should be implemented with actual logic to create SVGs with differences
+function generateDifferenceSVG(theme, level, hint = false) {
+    // This function should return two SVGs and an array of differences
+    // For now, it's just a placeholder
+    return [`<svg width="300" height="200"></svg>`, `<svg width="300" height="200"></svg>`, [{x: 100, y: 100}]];
+}
+</script>
+
+</body>
+</html>
